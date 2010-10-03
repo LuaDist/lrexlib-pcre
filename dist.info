@@ -1,0 +1,17 @@
+--- This file is part of LuaDist project
+
+name = "lrexlib"
+version = "2.4.0"
+
+desc = "Lrexlib is a regular expression library for Lua 5.1."
+author = "Reuben Thomas, Shmuel Zeigerman"
+license = "MIT"
+url = "http://lrexlib.luaforge.net/"
+maintainer = "Peter Kapec"
+
+depends = {
+  	"lua ~> 5.1",
+	"pcre >= 7.4",   -- optional
+	"regex >= 3.8a", -- optional - only used on WIN32 NOT CYGWIN
+	"onig >= 5.9.1", -- optional
+}
