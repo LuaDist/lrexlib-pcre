@@ -10,7 +10,7 @@ url = "http://lrexlib.luaforge.net/"
 maintainer = "Peter Kapec"
 
 depends = {
-  	"lua ~> 5.1",
+  "lua ~> 5.1",
 	"pcre >= 7.4",   -- optional
 	"regex >= 3.8a", -- optional - only used on WIN32 NOT CYGWIN
 	"onig >= 5.9.1", -- optional

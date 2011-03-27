@@ -1,75 +1,56 @@
-# Copyright (C) 2007-2009 LuaDist.
-# Created by Peter Kapec <kapecp@gmail.com>
+# Copyright (C) 2007-2011 LuaDist.
+# Created by Peter Kapec, Peter Drahos
 # Redistribution and use of this file is allowed according to the terms of the MIT license.
 # For details see the COPYRIGHT file distributed with LuaDist.
 # Please note that the package source code is licensed under its own license.
 
-PROJECT(lrexlib C)
-CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
-INCLUDE(dist.cmake)
-
-FIND_PACKAGE (Lua51 REQUIRED)
-INCLUDE_DIRECTORIES( ${LUA_INCLUDE_DIR})
+project ( lrexlib C )
+cmake_minimum_required ( VERSION 2.6 )
+include ( dist.cmake )
 
 # Find PCRE
-FIND_PACKAGE(PCRE)
-IF (PCRE_FOUND)
-	INCLUDE_DIRECTORIES(${PCRE_INCLUDE_DIRS})
-ENDIF()
+find_package ( PCRE )
+if ( PCRE_FOUND )
+	include_directories ( ${PCRE_INCLUDE_DIRS} )
+endif ()
 
 # Find posix (RXSpencer on Windows)
-IF (WIN32 AND NOT CYGWIN)
-	FIND_PACKAGE(RXSpencer REQUIRED)
-	INCLUDE_DIRECTORIES(${RXSPENCER_INCLUDE_DIRS})
-ENDIF()
+if ( WIN32 AND NOT CYGWIN )
+  add_definitions ( -Doff_t=_off_t )
+	find_package ( RXSpencer REQUIRED )
+	include_directories ( ${RXSPENCER_INCLUDE_DIRS} )
+  if ( MSVC )
+     add_definitions ( "-DREX_API=__declspec(dllexport)" )
+  endif()
+endif()
 
 # Find Oniguruma
-FIND_PACKAGE(Oniguruma)
-IF (Oniguruma_FOUND)
-	INCLUDE_DIRECTORIES(${ONIGURUMA_INCLUDE_DIRS})
-ENDIF()
-
-IF (MSVC)
-   ADD_DEFINITIONS("-DREX_API=__declspec(dllexport)")
-ENDIF()
+find_package ( Oniguruma )
+if ( Oniguruma_FOUND )
+	include_directories ( ${ONIGURUMA_INCLUDE_DIRS} )
+endif ()
 
 # common lrexlib modules
-SET (COMMON_SRC src/common.c )
+set ( COMMON_SRC src/common.c )
 
 # pcre module
-IF (PCRE_FOUND)
-	SET(PCRE_SRCS src/pcre/lpcre.c src/pcre/lpcre_f.c ${COMMON_SRC})
-	ADD_LUA_MODULE(rex_pcre ${PCRE_SRCS})
-	TARGET_LINK_LIBRARIES(rex_pcre ${PCRE_LIBRARIES})
-ENDIF()
+if ( PCRE_FOUND )
+	set(PCRE_SRCS src/pcre/lpcre.c src/pcre/lpcre_f.c ${COMMON_SRC} )
+	install_lua_module ( rex_pcre ${PCRE_SRCS} LINK ${PCRE_LIBRARIES} )
+endif ()
 
 # posix module
-IF (1)
-	SET(POSIX_SRCS src/posix/lposix.c ${COMMON_SRC})
-	ADD_LUA_MODULE(rex_posix ${POSIX_SRCS})
-	IF (WIN32 AND NOT CYGWIN)
-		TARGET_LINK_LIBRARIES(rex_posix ${RXSPENCER_LIBRARIES})
-		ADD_DEFINITIONS(-Doff_t=_off_t)
-	ENDIF()
-ENDIF()
+set ( POSIX_SRCS src/posix/lposix.c ${COMMON_SRC} )
+install_lua_module (rex_posix ${POSIX_SRCS} LINK ${RXSPENCER_LIBRARIES})
 
 # oniguruma module
-FIND_PACKAGE(Oniguruma)
-IF (Oniguruma_FOUND)
-	SET(ONIGURUMA_SRCS src/oniguruma/lonig.c src/oniguruma/lonig_f.c ${COMMON_SRC})
-	ADD_LUA_MODULE(rex_onig ${ONIGURUMA_SRCS})
-	TARGET_LINK_LIBRARIES(rex_onig ${ONIGURUMA_LIBRARIES})
-
-ENDIF()
+find_package ( Oniguruma )
+if ( Oniguruma_FOUND )
+	set ( ONIGURUMA_SRCS src/oniguruma/lonig.c src/oniguruma/lonig_f.c ${COMMON_SRC} )
+	install_lua_module(rex_onig ${ONIGURUMA_SRCS} LINK ${ONIGURUMA_LIBRARIES} )
+endif ()
 
 # Install lrexlib modules
-INSTALL(TARGETS rex_posix DESTINATION ${INSTALL_CMOD})
-IF (PCRE_FOUND)
-	INSTALL(TARGETS rex_pcre DESTINATION ${INSTALL_CMOD})
-ENDIF()
-IF (Oniguruma_FOUND)
-	INSTALL(TARGETS rex_onig DESTINATION ${INSTALL_CMOD})
-ENDIF()
-INSTALL(FILES ChangeLog LICENSE NEWS README DESTINATION ${INSTALL_DATA})
-INSTALL(DIRECTORY test/ DESTINATION ${INSTALL_TEST})
-INSTALL(DIRECTORY doc/ DESTINATION ${INSTALL_DOC})
+install_data ( ChangeLog LICENSE NEWS README )
+install_test ( test/ )
+install_doc ( doc/ )
