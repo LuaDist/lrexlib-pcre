@@ -1,14 +1,25 @@
 # Documentation Makefile
 
+APP = rst2html
+CP  = cp -a
+RM  = rm
+IDX = ../README.rst
+
 .SUFFIXES: .txt .html
 
-APP = rst2html.py
 CSS = --stylesheet-path=lrexlib.css --link-stylesheet
 HDR = --initial-header-level=2
 DT  = --date --time
-#GT  = -gt
+
+PAGES = index.html manual.html
 
 .txt.html:
-	$(APP) $(CSS) $(GT) $(HDR) $(DT) $< $@
+	$(APP) $(CSS) $(HDR) $(DT) $< $@
 
-all: index.html manual.html
+all: $(PAGES)
+
+index.txt: $(IDX)
+	$(CP) $< $@
+
+clean:
+	$(RM) $(PAGES) index.txt

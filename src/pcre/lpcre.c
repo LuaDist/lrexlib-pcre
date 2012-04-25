@@ -33,10 +33,10 @@ extern flag_pair pcre_error_flags[];
 static int getcflags (lua_State *L, int pos);
 #define ALG_GETCFLAGS(L,pos)  getcflags(L, pos)
 
-static void optlocale (TArgComp *argC, lua_State *L, int pos);
-#define ALG_OPTLOCALE(a,b,c)  optlocale(a,b,c)
+static void checkarg_compile (lua_State *L, int pos, TArgComp *argC);
+#define ALG_GETCARGS(a,b,c)  checkarg_compile(a,b,c)
 
-#define ALG_NOMATCH        PCRE_ERROR_NOMATCH
+#define ALG_NOMATCH(res)   ((res) == PCRE_ERROR_NOMATCH)
 #define ALG_ISMATCH(res)   ((res) >= 0)
 #define ALG_SUBBEG(ud,n)   ud->match[n+n]
 #define ALG_SUBEND(ud,n)   ud->match[n+n+1]
@@ -89,7 +89,7 @@ const char chartables_typename[] = "chartables";
 
 static void push_chartables_meta (lua_State *L) {
   lua_pushinteger (L, INDEX_CHARTABLES_META);
-  lua_rawget (L, LUA_ENVIRONINDEX);
+  lua_rawget (L, ALG_ENVIRONINDEX);
 }
 
 static int getcflags (lua_State *L, int pos) {
@@ -169,7 +169,7 @@ static int chartables_gc (lua_State *L) {
   return 0;
 }
 
-static void optlocale (TArgComp *argC, lua_State *L, int pos) {
+static void checkarg_compile (lua_State *L, int pos, TArgComp *argC) {
   argC->locale = NULL;
   argC->tables = NULL;
   if (!lua_isnoneornil (L, pos)) {
@@ -190,7 +190,7 @@ static int compile_regex (lua_State *L, const TArgComp *argC, TPcre **pud) {
 
   ud = (TPcre*)lua_newuserdata (L, sizeof (TPcre));
   memset (ud, 0, sizeof (TPcre));           /* initialize all members to 0 */
-  lua_pushvalue (L, LUA_ENVIRONINDEX);
+  lua_pushvalue (L, ALG_ENVIRONINDEX);
   lua_setmetatable (L, -2);
 
   if (argC->locale) {
@@ -204,7 +204,7 @@ static int compile_regex (lua_State *L, const TArgComp *argC, TPcre **pud) {
   else if (argC->tables) {
     tables = argC->tables;
     lua_pushinteger (L, INDEX_CHARTABLES_LINK);
-    lua_rawget (L, LUA_ENVIRONINDEX);
+    lua_rawget (L, ALG_ENVIRONINDEX);
     lua_pushvalue (L, -2);
     lua_pushvalue (L, argC->tablespos);
     lua_rawset (L, -3);
@@ -282,7 +282,7 @@ static int Lpcre_dfa_exec (lua_State *L)
   }
   else {
     free (buf);
-    if (res == ALG_NOMATCH)
+    if (ALG_NOMATCH (res))
       return lua_pushnil (L), 1;
     else
       return generate_error (L, ud, res);
@@ -337,7 +337,7 @@ static int Lpcre_gc (lua_State *L) {
     if (ud->pr)      pcre_free (ud->pr);
     if (ud->extra)   pcre_free (ud->extra);
     if (ud->tables)  pcre_free ((void *)ud->tables);
-    if (ud->match)   free (ud->match);
+    free (ud->match);
   }
   return 0;
 }
@@ -362,17 +362,17 @@ static int Lpcre_version (lua_State *L) {
   return 1;
 }
 
-static const luaL_reg chartables_meta[] = {
+static const luaL_Reg chartables_meta[] = {
   { "__gc",        chartables_gc },
   { "__tostring",  chartables_tostring },
   { NULL, NULL }
 };
 
-static const luaL_reg regex_meta[] = {
-  { "exec",        ud_exec },
-  { "tfind",       ud_tfind },    /* old name: match */
-  { "find",        ud_find },
-  { "match",       ud_match },
+static const luaL_Reg r_methods[] = {
+  { "exec",        algm_exec },
+  { "tfind",       algm_tfind },    /* old name: match */
+  { "find",        algm_find },
+  { "match",       algm_match },
 #if PCRE_MAJOR >= 6
   { "dfa_exec",    Lpcre_dfa_exec },
 #endif
@@ -381,14 +381,13 @@ static const luaL_reg regex_meta[] = {
   { NULL, NULL }
 };
 
-static const luaL_reg rexlib[] = {
-  { "match",       match },
-  { "find",        find },
-  { "gmatch",      gmatch },
-  { "gsub",        gsub },
-  { "split",       split },
-  { "new",         ud_new },
-  { "plainfind",   plainfind_func },
+static const luaL_Reg r_functions[] = {
+  { "match",       algf_match },
+  { "find",        algf_find },
+  { "gmatch",      algf_gmatch },
+  { "gsub",        algf_gsub },
+  { "split",       algf_split },
+  { "new",         algf_new },
   { "flags",       Lpcre_get_flags },
   { "version",     Lpcre_version },
   { "maketables",  Lpcre_maketables },
@@ -404,36 +403,33 @@ REX_API int REX_OPENLIB (lua_State *L) {
     return luaL_error (L, "%s requires at least version %d of PCRE library",
       REX_LIBNAME, (int)PCRE_MAJOR);
   }
-  /* create a new function environment to serve as a metatable for methods */
-  lua_newtable (L);
-  lua_pushvalue (L, -1);
-  lua_replace (L, LUA_ENVIRONINDEX);
-  lua_pushvalue(L, -1); /* mt.__index = mt */
-  lua_setfield(L, -2, "__index");
-  luaL_register (L, NULL, regex_meta);
 
-  /* register functions */
-  luaL_register (L, REX_LIBNAME, rexlib);
-  lua_pushliteral (L, REX_VERSION" (for PCRE)");
-  lua_setfield (L, -2, "_VERSION");
+  alg_register(L, r_methods, r_functions, "PCRE");
 
   /* create a table and register it as a metatable for "chartables" userdata */
-  lua_pushinteger (L, INDEX_CHARTABLES_META);
   lua_newtable (L);
   lua_pushliteral (L, "access denied");
   lua_setfield (L, -2, "__metatable");
+#if LUA_VERSION_NUM == 501
   luaL_register (L, NULL, chartables_meta);
-  lua_rawset (L, LUA_ENVIRONINDEX);
+  lua_rawseti (L, LUA_ENVIRONINDEX, INDEX_CHARTABLES_META);
+#else
+  lua_pushvalue(L, -3);
+  luaL_setfuncs (L, chartables_meta, 1);
+  lua_rawseti (L, -3, INDEX_CHARTABLES_META);
+#endif
 
   /* create a table for connecting "chartables" userdata to "regex" userdata */
-  lua_pushinteger (L, INDEX_CHARTABLES_LINK);
   lua_newtable (L);
   lua_pushliteral (L, "k");         /* weak keys */
   lua_setfield (L, -2, "__mode");
   lua_pushvalue (L, -1);            /* setmetatable (tb, tb) */
   lua_setmetatable (L, -2);
-  lua_rawset (L, LUA_ENVIRONINDEX);
+#if LUA_VERSION_NUM == 501
+  lua_rawseti (L, LUA_ENVIRONINDEX, INDEX_CHARTABLES_LINK);
+#else
+  lua_rawseti (L, -3, INDEX_CHARTABLES_LINK);
+#endif
 
   return 1;
 }
-

@@ -37,18 +37,12 @@ local function test_library (libname, setfile, verbose)
 end
 
 local avail_tests = {
-  gnuregex  = { lib = "rex_gnuregex", "common_sets", "posix_sets"  },
-  posix     = { lib = "rex_posix",    "common_sets", "posix_sets", },
-  spencer   = { lib = "rex_spencer",  "common_sets", "posix_sets", "spencer_sets" },
-  posix1    = { lib = "rex_posix1",   "common_sets", "posix_sets", "spencer_sets" },
-  tre       = { lib = "rex_tre",      "common_sets", "posix_sets", "spencer_sets" },
-  lord      = { lib = "rex_lord",     "common_sets", "posix_sets"  },
-  maddock   = { lib = "rex_maddock",  "common_sets", "posix_sets", },
-  pcreposix = { lib = "rex_pcreposix","common_sets", "posix_sets", },
-  pcre      = { lib = "rex_pcre",     "common_sets", "pcre_sets", "pcre_sets2", },
-  pcre_nr   = { lib = "rex_pcre_nr",  "common_sets", "pcre_sets", "pcre_sets2", },
-  pcre45    = { lib = "rex_pcre45",   "common_sets", "pcre_sets", "pcre_sets2", },
-  onig      = { lib = "rex_onig",     "common_sets", "onig_sets", }
+  posix   = { lib = "rex_posix",   "common_sets", "posix_sets" },
+  gnu     = { lib = "rex_gnu",     "common_sets", "emacs_sets", "gnu_sets" },
+  onig    = { lib = "rex_onig",    "common_sets", "onig_sets", },
+  pcre    = { lib = "rex_pcre",    "common_sets", "pcre_sets", "pcre_sets2", },
+  spencer = { lib = "rex_spencer", "common_sets", "posix_sets", "spencer_sets" },
+  tre     = { lib = "rex_tre",     "common_sets", "posix_sets", "spencer_sets", --[["tre_sets"]] },
 }
 
 do

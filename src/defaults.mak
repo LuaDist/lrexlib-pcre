@@ -1,5 +1,9 @@
 # default settings for lrexlib
 
+V = 2.6
+MINORV = 0
+
+LUA      = lua
 INC_LUA  =
 LIB_LUA  =
 

@@ -20,12 +20,12 @@ LIB = -ltre
 #   match, and you may well get segmentation faults (or worse).
 
 # Target name
-TRG = rex_tre
+REGNAME = tre
 
 # ===========================================================================
 # === END OF USER SETTINGS ===
 
-OBJ    = ltre.o common.o
+OBJ    = ltre.o ../common.o # ltre_w.o
 
 include ../common.mak
 
@@ -36,7 +36,8 @@ ar_tre: $(TRG_AR)
 so_tre: $(TRG_SO)
 
 # Dependencies
-ltre.o: ltre.c common.h algo.h
-common.o: common.c common.h
+ltre.o: ltre.c ../common.h ../algo.h
+ltre_w.o: ltre_w.c ../common.h ../algo.h
+../common.o: ../common.c ../common.h
 
 # (End of Makefile)

@@ -44,7 +44,7 @@
 #  define ALG_EFLAGS_DFLT 0
 #endif
 
-#define ALG_NOMATCH        REG_NOMATCH
+#define ALG_NOMATCH(res)   ((res) == REG_NOMATCH)
 #define ALG_ISMATCH(res)   ((res) == 0)
 #define ALG_SUBBEG(ud,n)   ud->match[n].rm_so
 #define ALG_SUBEND(ud,n)   ud->match[n].rm_eo
@@ -109,7 +109,7 @@ static int compile_regex (lua_State *L, const TArgComp *argC, TPosix **pud) {
   if (argC->cflags & REG_NOSUB)
     ud->r.re_nsub = 0;
   ud->match = (regmatch_t *) Lmalloc (L, (ALG_NSUB(ud) + 1) * sizeof (regmatch_t));
-  lua_pushvalue (L, LUA_ENVIRONINDEX);
+  lua_pushvalue (L, ALG_ENVIRONINDEX);
   lua_setmetatable (L, -2);
 
   if (pud) *pud = ud;
@@ -193,8 +193,7 @@ static int Posix_gc (lua_State *L) {
   if (ud->freed == 0) {           /* precaution against "manual" __gc calling */
     ud->freed = 1;
     regfree (&ud->r);
-    if (ud->match)
-      free (ud->match);
+    free (ud->match);
   }
   return 0;
 }
@@ -254,42 +253,30 @@ static int Posix_get_flags (lua_State *L) {
   return get_flags (L, fps);
 }
 
-static const luaL_reg posixmeta[] = {
-  { "exec",       ud_exec },
-  { "tfind",      ud_tfind },    /* old match */
-  { "find",       ud_find },
-  { "match",      ud_match },
+static const luaL_Reg r_methods[] = {
+  { "exec",       algm_exec },
+  { "tfind",      algm_tfind },    /* old match */
+  { "find",       algm_find },
+  { "match",      algm_match },
   { "__gc",       Posix_gc },
   { "__tostring", Posix_tostring },
   { NULL, NULL}
 };
 
-static const luaL_reg rexlib[] = {
-  { "match",      match },
-  { "find",       find },
-  { "gmatch",     gmatch },
-  { "gsub",       gsub },
-  { "split",      split },
-  { "new",        ud_new },
+static const luaL_Reg r_functions[] = {
+  { "match",      algf_match },
+  { "find",       algf_find },
+  { "gmatch",     algf_gmatch },
+  { "gsub",       algf_gsub },
+  { "split",      algf_split },
+  { "new",        algf_new },
   { "flags",      Posix_get_flags },
-  { "plainfind",  plainfind_func },
   { NULL, NULL }
 };
 
 /* Open the library */
 REX_API int REX_OPENLIB (lua_State *L)
 {
-  /* create a new function environment to serve as a metatable for methods */
-  lua_newtable (L);
-  lua_pushvalue (L, -1);
-  lua_replace (L, LUA_ENVIRONINDEX);
-  lua_pushvalue(L, -1); /* mt.__index = mt */
-  lua_setfield(L, -2, "__index");
-  luaL_register (L, NULL, posixmeta);
-
-  /* register functions */
-  luaL_register (L, REX_LIBNAME, rexlib);
-  lua_pushliteral (L, REX_VERSION" (for POSIX regexes)");
-  lua_setfield (L, -2, "_VERSION");
+  alg_register(L, r_methods, r_functions, "POSIX regexes");
   return 1;
 }

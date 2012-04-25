@@ -1,4 +1,4 @@
-# makefile for rex_pcre library
+# makefile for rex_gnu library
 
 include ../defaults.mak
 
@@ -7,32 +7,33 @@ include ../defaults.mak
 
 # These are default values.
 INC =
-LIB = -lpcre
+LIB =
 
 # If the default settings don't work for your system,
 # try to uncomment and edit the settings below.
-#INC =
-#LIB = -lpcre
+# The default settings below work with a libgnu.a in the current directory,
+# copied from any libgnu.a built with the regex module.
+#INC = -I. -DREX_GNU_INCLUDE='"regex.h"'
+#LIB = -L. -lgnu
 
-# Target name
-TRG = rex_pcre
+# Regex library name
+REGNAME = gnu
 
 # ===========================================================================
 # === END OF USER SETTINGS ===
 
-OBJ    = lpcre.o lpcre_f.o ../common.o
+OBJ    = lgnu.o ../common.o
 
 include ../common.mak
 
-# static PCRE regexp library binding
-ar_pcre: $(TRG_AR)
+# static GNU regexp library binding
+ar_gnu: $(TRG_AR)
 
-# dynamic PCRE regexp library binding
-so_pcre: $(TRG_SO)
+# dynamic GNU regexp library binding
+so_gnu: $(TRG_SO)
 
 # Dependencies
-lpcre.o: lpcre.c ../common.h ../algo.h
-lpcre_f.o: lpcre_f.c ../common.h
+lgnu.o: lgnu.c ../common.h ../algo.h
 ../common.o: ../common.c ../common.h
 
 # (End of Makefile)

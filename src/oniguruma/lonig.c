@@ -31,13 +31,10 @@ extern int LOnig_get_flags (lua_State *L);
 static int getcflags (lua_State *L, int pos);
 #define ALG_GETCFLAGS(L,pos)  getcflags(L, pos)
 
-static void optlocale (TArgComp *argC, lua_State *L, int pos);
-#define ALG_OPTLOCALE(a,b,c)  optlocale(a,b,c)
+static void checkarg_compile (lua_State *L, int pos, TArgComp *argC);
+#define ALG_GETCARGS(a,b,c)  checkarg_compile(a,b,c)
 
-static void optsyntax (TArgComp *argC, lua_State *L, int pos);
-#define ALG_OPTSYNTAX(a,b,c)  optsyntax(a,b,c)
-
-#define ALG_NOMATCH        ONIG_MISMATCH
+#define ALG_NOMATCH(res)   ((res) == ONIG_MISMATCH)
 #define ALG_ISMATCH(res)   ((res) >= 0)
 #define ALG_SUBBEG(ud,n)   ud->region->beg[n]
 #define ALG_SUBEND(ud,n)   ud->region->end[n]
@@ -72,6 +69,8 @@ static void do_named_subpatterns (lua_State *L, TOnig *ud, const char *text);
 #  define DO_NAMED_SUBPATTERNS do_named_subpatterns
 
 #include "../algo.h"
+
+#define CUC const unsigned char*
 
 /*  Functions
  ******************************************************************************
@@ -174,18 +173,15 @@ static int fcmp(const void *p1, const void *p2) {
   return strcmp(((EncPair*)p1)->name, ((EncPair*)p2)->name);
 }
 
-static void optlocale (TArgComp *argC, lua_State *L, int pos) {
-  EncPair key;
+static const char *getlocale (lua_State *L, int pos) {
+  EncPair key, *found;
   if ((key.name = luaL_optstring(L, pos, NULL)) == NULL)
-    argC->locale = (const char*)ONIG_ENCODING_ASCII;
-  else {
-    EncPair *pair = (EncPair*) bsearch(&key, Encodings,
-      sizeof(Encodings)/sizeof(EncPair), sizeof(EncPair), fcmp);
-    if (pair != NULL)
-      argC->locale = (const char*)pair->value;
-    else
-      luaL_argerror(L, pos, "invalid or unsupported encoding string");
-  }
+    return (const char*)ONIG_ENCODING_ASCII;
+  found = (EncPair*) bsearch(&key, Encodings, sizeof(Encodings)/sizeof(EncPair),
+    sizeof(EncPair), fcmp);
+  if (found == NULL)
+    luaL_argerror(L, pos, "invalid or unsupported encoding string");
+  return (const char*)found->value;
 }
 
 static void *getsyntax (lua_State *L, int pos) {
@@ -193,14 +189,15 @@ static void *getsyntax (lua_State *L, int pos) {
   if ((key.name = luaL_optstring(L, pos, NULL)) == NULL)
     return ONIG_SYNTAX_DEFAULT;
   found = (EncPair*) bsearch(&key, Syntaxes, sizeof(Syntaxes)/sizeof(EncPair),
-          sizeof(EncPair), fcmp);
+    sizeof(EncPair), fcmp);
   if (found == NULL)
     luaL_argerror(L, pos, "invalid or unsupported syntax string");
   return found->value;
 }
 
-static void optsyntax (TArgComp *argC, lua_State *L, int pos) {
-  argC->syntax = getsyntax(L, pos);
+static void checkarg_compile (lua_State *L, int pos, TArgComp *argC) {
+  argC->locale = getlocale (L, pos);
+  argC->syntax = getsyntax (L, pos + 1);
 }
 
 /*
@@ -220,10 +217,10 @@ static int compile_regex (lua_State *L, const TArgComp *argC, TOnig **pud) {
 
   ud = (TOnig*)lua_newuserdata (L, sizeof (TOnig));
   memset (ud, 0, sizeof (TOnig));           /* initialize all members to 0 */
-  lua_pushvalue (L, LUA_ENVIRONINDEX);
+  lua_pushvalue (L, ALG_ENVIRONINDEX);
   lua_setmetatable (L, -2);
 
-  r = onig_new(&ud->reg, argC->pattern, argC->pattern + argC->patlen,
+  r = onig_new(&ud->reg, (CUC)argC->pattern, (CUC)argC->pattern + argC->patlen,
     argC->cflags, (OnigEncoding)argC->locale, (OnigSyntaxType*)argC->syntax,
     &ud->einfo);
   if (r != ONIG_NORMAL)
@@ -266,8 +263,9 @@ static void do_named_subpatterns (lua_State *L, TOnig *ud, const char *text) {
 static int findmatch_exec (TUserdata *ud, TArgExec *argE) {
   const char *end = argE->text + argE->textlen;
   onig_region_clear(ud->region);
-  return onig_search (ud->reg, argE->text, end, argE->text + argE->startoffset,
-    end, ud->region, argE->eflags);
+  return onig_search (ud->reg, (CUC)argE->text, (CUC)end,
+                      (CUC)argE->text + argE->startoffset, (CUC)end,
+                      ud->region, argE->eflags);
 }
 
 static void gmatch_pushsubject (lua_State *L, TArgExec *argE) {
@@ -281,8 +279,8 @@ static int gmatch_exec (TOnig *ud, TArgExec *argE) {
 static int gsub_exec (TOnig *ud, TArgExec *argE, int st) {
   const char *end = argE->text + argE->textlen;
   onig_region_clear(ud->region);
-  return onig_search (ud->reg, argE->text, end, argE->text + st,
-    end, ud->region, argE->eflags);
+  return onig_search (ud->reg, (CUC)argE->text, (CUC)end, (CUC)argE->text + st,
+    (CUC)end, ud->region, argE->eflags);
 }
 
 static int split_exec (TOnig *ud, TArgExec *argE, int st) {
@@ -316,24 +314,23 @@ static int LOnig_version (lua_State *L) {
   return 1;
 }
 
-static const luaL_reg regex_meta[] = {
-  { "exec",        ud_exec },
-  { "tfind",       ud_tfind },    /* old name: match */
-  { "find",        ud_find },
-  { "match",       ud_match },
+static const luaL_Reg r_methods[] = {
+  { "exec",        algm_exec },
+  { "tfind",       algm_tfind },    /* old name: match */
+  { "find",        algm_find },
+  { "match",       algm_match },
   { "__gc",        LOnig_gc },
   { "__tostring",  LOnig_tostring },
   { NULL, NULL }
 };
 
-static const luaL_reg rexlib[] = {
-  { "match",            match },
-  { "find",             find },
-  { "gmatch",           gmatch },
-  { "gsub",             gsub },
-  { "split",            split },
-  { "new",              ud_new },
-  { "plainfind",        plainfind_func },
+static const luaL_Reg r_functions[] = {
+  { "match",            algf_match },
+  { "find",             algf_find },
+  { "gmatch",           algf_gmatch },
+  { "gsub",             algf_gsub },
+  { "split",            algf_split },
+  { "new",              algf_new },
   { "flags",            LOnig_get_flags },
   { "version",          LOnig_version },
   { "setdefaultsyntax", LOnig_setdefaultsyntax },
@@ -346,23 +343,8 @@ REX_API int REX_OPENLIB (lua_State *L) {
     return luaL_error (L, "%s requires at least version %d of Oniguruma library",
       REX_LIBNAME, (int)ONIGURUMA_VERSION_MAJOR);
   }
-
   onig_init();
   onig_set_default_syntax(ONIG_SYNTAX_RUBY);
-
-  /* create a new function environment to serve as a metatable for methods */
-  lua_newtable (L);
-  lua_pushvalue (L, -1);
-  lua_replace (L, LUA_ENVIRONINDEX);
-  lua_pushvalue(L, -1); /* mt.__index = mt */
-  lua_setfield(L, -2, "__index");
-  luaL_register (L, NULL, regex_meta);
-
-  /* register functions */
-  luaL_register (L, REX_LIBNAME, rexlib);
-  lua_pushliteral (L, REX_VERSION" (for Oniguruma)");
-  lua_setfield (L, -2, "_VERSION");
-
+  alg_register(L, r_methods, r_functions, "Oniguruma");
   return 1;
 }
-
