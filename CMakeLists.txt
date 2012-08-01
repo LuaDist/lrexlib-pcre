@@ -52,6 +52,6 @@ if ( Oniguruma_FOUND )
 endif ( )
 
 # Install lrexlib modules
-install_data ( ChangeLog LICENSE NEWS README )
+install_data ( LICENSE NEWS README.rst )
 install_test ( test/ )
 install_doc ( doc/ )
