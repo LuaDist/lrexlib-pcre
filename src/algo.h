@@ -3,8 +3,7 @@
 
 #include "common.h"
 
-/* FIXME: Get version from defaults.mak */
-#define REX_VERSION "Lrexlib 2.6.0"
+#define REX_VERSION "Lrexlib " VERSION
 
 /* Forward declarations */
 static void gmatch_pushsubject (lua_State *L, TArgExec *argE);
@@ -115,6 +114,40 @@ static TUserdata* check_ud (lua_State *L)
 }
 
 
+static void check_subject (lua_State *L, int pos, TArgExec *argE)
+{
+  int stype;
+  argE->text = lua_tolstring (L, pos, &argE->textlen);
+  stype = lua_type (L, pos);
+  if (stype != LUA_TSTRING && stype != LUA_TTABLE && stype != LUA_TUSERDATA) {
+    luaL_typerror (L, pos, "string, table or userdata");
+  } else if (argE->text == NULL) {
+    int type;
+    lua_getfield (L, pos, "topointer");
+    if (lua_type (L, -1) != LUA_TFUNCTION)
+      luaL_error (L, "subject has no topointer method");
+    lua_pushvalue (L, pos);
+    lua_call (L, 1, 1);
+    type = lua_type (L, -1);
+    if (type != LUA_TLIGHTUSERDATA)
+      luaL_error (L, "subject's topointer method returned %s (expected lightuserdata)",
+                  lua_typename (L, type));
+    argE->text = lua_touserdata (L, -1);
+    lua_pop (L, 1);
+#if LUA_VERSION_NUM == 501
+    lua_objlen (L, pos);
+#else
+    lua_len (L, pos);
+#endif
+    type = lua_type (L, -1);
+    if (type != LUA_TNUMBER)
+      luaL_error (L, "subject's length is %s (expected number)",
+                  lua_typename (L, type));
+    argE->textlen = lua_tointeger (L, -1);
+    lua_pop (L, 1);
+  }
+}
+
 static void check_pattern (lua_State *L, int pos, TArgComp *argC)
 {
   if (lua_isstring (L, pos)) {
@@ -134,13 +167,15 @@ static void checkarg_new (lua_State *L, TArgComp *argC) {
 
 /* function gsub (s, patt, f, [n], [cf], [ef], [larg...]) */
 static void checkarg_gsub (lua_State *L, TArgComp *argC, TArgExec *argE) {
-  argE->text = luaL_checklstring (L, 1, &argE->textlen);
+  check_subject (L, 1, argE);
   check_pattern (L, 2, argC);
   lua_tostring (L, 3);    /* converts number (if any) to string */
   argE->reptype = lua_type (L, 3);
   if (argE->reptype != LUA_TSTRING && argE->reptype != LUA_TTABLE &&
-      argE->reptype != LUA_TFUNCTION) {
-    luaL_typerror (L, 3, "string, table or function");
+      argE->reptype != LUA_TFUNCTION && argE->reptype != LUA_TNIL &&
+      (argE->reptype != LUA_TBOOLEAN ||
+       (argE->reptype == LUA_TBOOLEAN && lua_toboolean (L, 3)))) {
+    luaL_typerror (L, 3, "string, table, function, false or nil");
   }
   argE->funcpos = 3;
   argE->funcpos2 = 4;
@@ -154,7 +189,7 @@ static void checkarg_gsub (lua_State *L, TArgComp *argC, TArgExec *argE) {
 /* function find  (s, patt, [st], [cf], [ef], [larg...]) */
 /* function match (s, patt, [st], [cf], [ef], [larg...]) */
 static void checkarg_find_func (lua_State *L, TArgComp *argC, TArgExec *argE) {
-  argE->text = luaL_checklstring (L, 1, &argE->textlen);
+  check_subject (L, 1, argE);
   check_pattern (L, 2, argC);
   argE->startoffset = get_startoffset (L, 3, argE->textlen);
   argC->cflags = ALG_GETCFLAGS (L, 4);
@@ -166,7 +201,7 @@ static void checkarg_find_func (lua_State *L, TArgComp *argC, TArgExec *argE) {
 /* function gmatch (s, patt, [cf], [ef], [larg...]) */
 /* function split  (s, patt, [cf], [ef], [larg...]) */
 static void checkarg_gmatch_split (lua_State *L, TArgComp *argC, TArgExec *argE) {
-  argE->text = luaL_checklstring (L, 1, &argE->textlen);
+  check_subject (L, 1, argE);
   check_pattern (L, 2, argC);
   argC->cflags = ALG_GETCFLAGS (L, 3);
   argE->eflags = luaL_optint (L, 4, ALG_EFLAGS_DFLT);
@@ -180,7 +215,7 @@ static void checkarg_gmatch_split (lua_State *L, TArgComp *argC, TArgExec *argE)
 /* method r:match (s, [st], [ef]) */
 static void checkarg_find_method (lua_State *L, TArgExec *argE, TUserdata **ud) {
   *ud = check_ud (L);
-  argE->text = luaL_checklstring (L, 2, &argE->textlen);
+  check_subject (L, 2, argE);
   argE->startoffset = get_startoffset (L, 3, argE->textlen);
   argE->eflags = luaL_optint (L, 4, ALG_EFLAGS_DFLT);
 }
@@ -301,7 +336,11 @@ static int algf_gsub (lua_State *L) {
       }
     }
     /*----------------------------------------------------------------*/
-    if (argE.reptype != LUA_TSTRING) {
+    else if (argE.reptype == LUA_TNIL || argE.reptype == LUA_TBOOLEAN) {
+      buffer_addlstring (pBuf, argE.text + from, to - from);
+    }
+    /*----------------------------------------------------------------*/
+    if (argE.reptype == LUA_TTABLE || argE.reptype == LUA_TFUNCTION) {
       if (lua_tostring (L, -1)) {
         buffer_addvalue (pBuf, -1);
         curr_subst = 1;
