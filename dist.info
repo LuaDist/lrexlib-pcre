@@ -1,17 +1,16 @@
 --- This file is part of LuaDist project
 
-name = "lrexlib"
-version = "2.4.0"
+name = "lrexlib-pcre"
+version = "2.7.1"
 
-desc = "Lrexlib is a regular expression library for Lua 5.1."
+desc = "a Lua 5.1 and 5.2 binding of PCRE regex library API"
 author = "Reuben Thomas, Shmuel Zeigerman"
 license = "MIT"
-url = "http://lrexlib.luaforge.net/"
+url = "https://github.com/rrthomas/lrexlib"
 maintainer = "Peter Kapec"
 
 depends = {
-  "lua ~> 5.1",
-	"pcre >= 7.4",   -- optional
-	"regex >= 3.8a", -- optional - only used on WIN32 NOT CYGWIN
-	"onig >= 5.9.1", -- optional
+  "lua >= 5.1",
+  "lrexlib == 2.7.1",
+	"pcre >= 7.4"
 }
